@@ -1,60 +1,66 @@
 {
-  "name": "memories-ai-mcp",
-  "version": "1.0.0",
-  "description": "MCP Server for Memories.ai - Video upload, search, chat, and management via Model Context Protocol",
-  "type": "module",
-  "main": "src/index.ts",
-  "bin": {
-    "memories-ai-mcp": "src/index.ts"
-  },
-  "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "dev:build": "tsdown --watch",
-    "start": "bun run src/index.ts",
-    "start:dist": "node dist/index.mjs",
-    "build": "tsdown",
-    "typecheck": "bun tsc --noEmit",
-    "lint": "echo 'Add your preferred linter here'",
-    "test": "bun test",
-    "clean": "rm -rf dist build"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.2",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "^5.9.2",
-    "tsdown": "^0.14.1"
-  },
-  "files": [
-    "src/",
-    "dist/",
-    "README.md"
-  ],
-  "engines": {
-    "bun": ">=1.0.0"
-  },
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "memories-ai",
-    "video",
-    "search",
-    "ai",
-    "llm",
-    "chat",
-    "transcription",
-    "bun"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/yourusername/memories-ai-mcp.git"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/memories-ai-mcp/issues"
-  },
-  "homepage": "https://github.com/yourusername/memories-ai-mcp#readme"
+	"name": "memories-ai-mcp",
+	"version": "1.0.0",
+	"description": "MCP Server for Memories.ai - Video upload, search, chat, and management via Model Context Protocol",
+	"type": "module",
+	"main": "src/index.ts",
+	"bin": {
+		"memories-ai-mcp": "src/index.ts"
+	},
+	"scripts": {
+		"dev": "bun run --watch src/index.ts",
+		"dev:build": "tsdown --watch",
+		"start": "bun run src/index.ts",
+		"start:dist": "node dist/index.mjs",
+		"build": "tsdown",
+		"typecheck": "bun tsc --noEmit",
+		"lint": "biome lint src/",
+		"lint:fix": "biome lint --write src/",
+		"format": "biome format src/",
+		"format:fix": "biome format --write src/",
+		"check": "biome check src/",
+		"check:fix": "biome check --write src/",
+		"test": "bun test",
+		"clean": "rm -rf dist build"
+	},
+	"dependencies": {
+		"@biomejs/biome": "^2.1.4",
+		"@modelcontextprotocol/sdk": "^1.17.2",
+		"zod": "^3.23.8"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"typescript": "^5.9.2",
+		"tsdown": "^0.14.1"
+	},
+	"files": [
+		"src/",
+		"dist/",
+		"README.md"
+	],
+	"engines": {
+		"bun": ">=1.0.0"
+	},
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"memories-ai",
+		"video",
+		"search",
+		"ai",
+		"llm",
+		"chat",
+		"transcription",
+		"bun"
+	],
+	"author": "Your Name",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/yourusername/memories-ai-mcp.git"
+	},
+	"bugs": {
+		"url": "https://github.com/yourusername/memories-ai-mcp/issues"
+	},
+	"homepage": "https://github.com/yourusername/memories-ai-mcp#readme"
 }
