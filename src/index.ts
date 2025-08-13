@@ -36,7 +36,9 @@ const server = new McpServer({
 function getApiKey(providedKey?: string): string {
   const apiKey = providedKey || process.env.MEMORIES_API_KEY;
   if (!apiKey) {
-    throw new Error("API key is required. Provide it via MEMORIES_API_KEY environment variable or as a parameter.");
+    throw new Error(
+      "API key is required. Provide it via MEMORIES_API_KEY environment variable or as a parameter.",
+    );
   }
   return apiKey;
 }
@@ -44,19 +46,19 @@ function getApiKey(providedKey?: string): string {
 // Helper function to get video MIME type from file extension
 function getVideoMimeType(extension: string): string {
   const mimeTypes: Record<string, string> = {
-    '.mp4': 'video/mp4',
-    '.avi': 'video/x-msvideo',
-    '.mov': 'video/quicktime',
-    '.wmv': 'video/x-ms-wmv',
-    '.flv': 'video/x-flv',
-    '.webm': 'video/webm',
-    '.mkv': 'video/x-matroska',
-    '.m4v': 'video/x-m4v',
-    '.3gp': 'video/3gpp',
-    '.ts': 'video/mp2t',
+    ".mp4": "video/mp4",
+    ".avi": "video/x-msvideo",
+    ".mov": "video/quicktime",
+    ".wmv": "video/x-ms-wmv",
+    ".flv": "video/x-flv",
+    ".webm": "video/webm",
+    ".mkv": "video/x-matroska",
+    ".m4v": "video/x-m4v",
+    ".3gp": "video/3gpp",
+    ".ts": "video/mp2t",
   };
-  
-  return mimeTypes[extension.toLowerCase()] || 'video/mp4';
+
+  return mimeTypes[extension.toLowerCase()] || "video/mp4";
 }
 
 // Helper function for making Memories.ai API requests
@@ -70,7 +72,13 @@ async function makeMemoriesRequest<T>(
     apiKey?: string;
   } = {},
 ): Promise<T> {
-  const { method = "GET", body, headers = {}, isFormData = false, apiKey } = options;
+  const {
+    method = "GET",
+    body,
+    headers = {},
+    isFormData = false,
+    apiKey,
+  } = options;
 
   const requestHeaders = {
     Authorization: getApiKey(apiKey),
@@ -130,15 +138,17 @@ server.registerResource(
               "Semantic video search",
               "AI video chat with context",
               "Video transcription (audio/visual)",
-              "Session and video management",
               "Real-time status callbacks",
             ],
             endpoints: {
-              upload: "/serve/api/v1/upload",
+              uploadFile: "/serve/api/v1/upload",
+              uploadUrl: "/serve/api/v1/upload_url",
               search: "/serve/api/v1/search",
               chat: "/serve/api/v1/chat",
-              listVideos: "/serve/api/v1/videos",
-              listSessions: "/serve/api/v1/sessions",
+              listVideos: "/serve/api/v1/list_videos",
+              listSessions: "/serve/api/v1/list_sessions",
+              deleteVideos: "/serve/api/v1/delete",
+              checkStatus: "/serve/api/v1/status",
             },
             authentication: "API Key in Authorization header",
             supportedFormats: ["h264", "h265", "vp9", "hevc"],
@@ -214,9 +224,7 @@ server.registerTool(
     title: "Upload Video from File",
     description: "Upload a video file to Memories.ai from local storage",
     inputSchema: {
-      file_path: z
-        .string()
-        .describe("Path to the video file to upload"),
+      file_path: z.string().describe("Path to the video file to upload"),
       unique_id: z
         .string()
         .describe("Unique ID for workspace/namespace/user identification"),
@@ -232,7 +240,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ file_path, unique_id, callback, video_name, api_key }) => {
@@ -251,18 +261,18 @@ server.registerTool(
       // Read file as buffer
       const fileBuffer = fs.readFileSync(file_path);
       const fileName = video_name || path.basename(file_path);
-      
+
       // Create FormData for multipart upload
       const formData = new FormData();
-      
+
       // Create a Blob from the buffer (Node.js compatible)
-      const blob = new Blob([fileBuffer], { 
-        type: getVideoMimeType(path.extname(file_path)) 
+      const blob = new Blob([fileBuffer], {
+        type: getVideoMimeType(path.extname(file_path)),
       });
-      
-      formData.append('file', blob, fileName);
-      formData.append('unique_id', unique_id);
-      if (callback) formData.append('callback', callback);
+
+      formData.append("file", blob, fileName);
+      formData.append("unique_id", unique_id);
+      if (callback) formData.append("callback", callback);
 
       const response = await makeMemoriesRequest("/serve/api/v1/upload", {
         method: "POST",
@@ -333,7 +343,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ url, unique_id, callback, video_name, api_key }) => {
@@ -392,7 +404,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ query, unique_id, search_type, api_key }) => {
@@ -450,7 +464,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ video_nos, prompt, unique_id, session_id, api_key }) => {
@@ -505,30 +521,55 @@ server.registerTool(
         .string()
         .describe("Unique ID for workspace/namespace/user identification"),
       page: z.number().min(1).default(1).describe("Page number for pagination"),
-      limit: z
+      size: z
         .number()
         .min(1)
         .max(100)
         .default(20)
         .describe("Number of videos per page"),
+      video_name: z
+        .string()
+        .optional()
+        .describe("Optional filter by video name"),
+      video_no: z
+        .string()
+        .optional()
+        .describe("Optional filter by specific video ID"),
+      status: z
+        .enum(["processing", "completed", "failed", "queued"])
+        .optional()
+        .describe("Optional filter by video processing status"),
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
-  async ({ unique_id, page, limit, api_key }) => {
+  async ({ unique_id, page, size, video_name, video_no, status, api_key }) => {
     try {
-      const response = await makeMemoriesRequest(
-        `/serve/api/v1/videos?unique_id=${unique_id}&page=${page}&limit=${limit}`,
-        { apiKey: api_key },
-      );
+      const body: any = {
+        unique_id,
+        page,
+        size,
+      };
+
+      if (video_name) body.video_name = video_name;
+      if (video_no) body.video_no = video_no;
+      if (status) body.status = status;
+
+      const response = await makeMemoriesRequest("/serve/api/v1/list_videos", {
+        method: "POST",
+        body,
+        apiKey: api_key,
+      });
 
       return {
         content: [
           {
             type: "text",
-            text: `Videos retrieved successfully!\n\nPage: ${page}, Limit: ${limit}\n\n${JSON.stringify(response, null, 2)}`,
+            text: `Videos list retrieved successfully!\n\nPage: ${page}, Size: ${size}\n\nResponse:\n${JSON.stringify(response, null, 2)}`,
           },
         ],
       };
@@ -551,7 +592,8 @@ server.registerTool(
   "list-sessions",
   {
     title: "List Chat Sessions",
-    description: "Get a list of all chat sessions",
+    description:
+      "Get a list of all chat sessions (endpoint may not be fully implemented)",
     inputSchema: {
       unique_id: z
         .string()
@@ -566,7 +608,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ unique_id, page, limit, api_key }) => {
@@ -580,7 +624,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Sessions retrieved successfully!\n\nPage: ${page}, Limit: ${limit}\n\n${JSON.stringify(response, null, 2)}`,
+            text: `Sessions list request completed!\n\nPage: ${page}, Limit: ${limit}\n\nResponse:\n${JSON.stringify(response, null, 2)}\n\nNote: This endpoint may not be fully implemented in the Memories.ai API yet.`,
           },
         ],
       };
@@ -589,7 +633,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Error listing sessions: ${error instanceof Error ? error.message : "Unknown error"}`,
+            text: `Error listing sessions: ${error instanceof Error ? error.message : "Unknown error"}\n\nNote: This endpoint may not be fully implemented in the Memories.ai API yet.`,
           },
         ],
         isError: true,
@@ -603,7 +647,8 @@ server.registerTool(
   "delete-videos",
   {
     title: "Delete Videos",
-    description: "Delete one or more videos from Memories.ai",
+    description:
+      "Delete one or more videos from Memories.ai (endpoint may not be fully implemented)",
     inputSchema: {
       video_nos: z.array(z.string()).describe("Array of video IDs to delete"),
       unique_id: z
@@ -612,7 +657,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ video_nos, unique_id, api_key }) => {
@@ -630,7 +677,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Videos deleted successfully!\n\nDeleted video IDs: ${video_nos.join(", ")}\n\n${JSON.stringify(response, null, 2)}`,
+            text: `Video deletion request completed!\n\nRequested video IDs: ${video_nos.join(", ")}\n\nResponse:\n${JSON.stringify(response, null, 2)}\n\nNote: This endpoint may not be fully implemented in the Memories.ai API yet.`,
           },
         ],
       };
@@ -639,7 +686,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Error deleting videos: ${error instanceof Error ? error.message : "Unknown error"}`,
+            text: `Error deleting videos: ${error instanceof Error ? error.message : "Unknown error"}\n\nNote: This endpoint may not be fully implemented in the Memories.ai API yet.`,
           },
         ],
         isError: true,
@@ -653,7 +700,8 @@ server.registerTool(
   "check-video-status",
   {
     title: "Check Video Status",
-    description: "Check the processing status of uploaded videos",
+    description:
+      "Check the processing status of uploaded videos (endpoint may not be fully implemented)",
     inputSchema: {
       video_nos: z.array(z.string()).describe("Array of video IDs to check"),
       unique_id: z
@@ -662,7 +710,9 @@ server.registerTool(
       api_key: z
         .string()
         .optional()
-        .describe("Optional Memories.ai API key (overrides environment variable)"),
+        .describe(
+          "Optional Memories.ai API key (overrides environment variable)",
+        ),
     },
   },
   async ({ video_nos, unique_id, api_key }) => {
@@ -680,7 +730,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Video status check completed!\n\nChecked videos: ${video_nos.join(", ")}\n\n${JSON.stringify(response, null, 2)}`,
+            text: `Video status check request completed!\n\nRequested video IDs: ${video_nos.join(", ")}\n\nResponse:\n${JSON.stringify(response, null, 2)}\n\nNote: This endpoint may not be fully implemented in the Memories.ai API yet.`,
           },
         ],
       };
@@ -689,7 +739,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Error checking video status: ${error instanceof Error ? error.message : "Unknown error"}`,
+            text: `Error checking video status: ${error instanceof Error ? error.message : "Unknown error"}\n\nNote: This endpoint may not be fully implemented in the Memories.ai API yet.`,
           },
         ],
         isError: true,
@@ -868,8 +918,12 @@ async function main() {
       getApiKey();
       console.error("✅ Memories.ai API key found in environment");
     } catch (error) {
-      console.error("⚠️  No API key in environment - users can provide it per request");
-      console.error("   To set globally: export MEMORIES_API_KEY=your_api_key_here");
+      console.error(
+        "⚠️  No API key in environment - users can provide it per request",
+      );
+      console.error(
+        "   To set globally: export MEMORIES_API_KEY=your_api_key_here",
+      );
     }
 
     console.error(`🚀 Starting ${SERVER_INFO.name} v${SERVER_INFO.version}`);
@@ -918,4 +972,3 @@ main().catch((error) => {
   console.error("💥 Fatal error:", error);
   process.exit(1);
 });
-
