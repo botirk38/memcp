@@ -1,11 +1,11 @@
 {
-  "name": "memcp-skeleton",
+  "name": "memories-ai-mcp",
   "version": "1.0.0",
-  "description": "Skeleton MCP Server using Bun - A template for building Model Context Protocol servers",
+  "description": "MCP Server for Memories.ai - Video upload, search, chat, and management via Model Context Protocol",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
-    "memcp-skeleton": "src/index.ts"
+    "memories-ai-mcp": "src/index.ts"
   },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
@@ -38,21 +38,23 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "bun",
-    "skeleton",
-    "template",
+    "memories-ai",
+    "video",
+    "search",
     "ai",
     "llm",
-    "server"
+    "chat",
+    "transcription",
+    "bun"
   ],
   "author": "Your Name",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/memcp-skeleton.git"
+    "url": "git+https://github.com/yourusername/memories-ai-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/memcp-skeleton/issues"
+    "url": "https://github.com/yourusername/memories-ai-mcp/issues"
   },
-  "homepage": "https://github.com/yourusername/memcp-skeleton#readme"
+  "homepage": "https://github.com/yourusername/memories-ai-mcp#readme"
 }

@@ -1,12 +1,12 @@
 /**
- * MCP Server Skeleton using Bun
+ * Memories.ai MCP Server
  *
- * This is a template/skeleton for building Model Context Protocol servers.
- * It demonstrates the basic patterns for resources, tools, and prompts.
+ * A Model Context Protocol server for interacting with the Memories.ai API.
+ * Provides video upload, search, chat, and management capabilities.
  *
  * Usage:
- *   bun run src/index.ts
- *   bun run dev (with --watch)
+ *   MEMORIES_API_KEY=your_key bun run src/index.ts
+ *   MEMORIES_API_KEY=your_key bun run dev (with --watch)
  */
 
 import {
@@ -18,9 +18,11 @@ import { z } from "zod";
 
 // Server configuration
 const SERVER_INFO = {
-  name: "memcp-skeleton",
+  name: "memories-ai-mcp",
   version: "1.0.0",
 } as const;
+
+const API_BASE_URL = "https://api.memories.ai";
 
 // Create the MCP server instance
 const server = new McpServer({
@@ -28,19 +30,68 @@ const server = new McpServer({
   version: SERVER_INFO.version,
 });
 
+// Helper function to get API key from environment
+function getApiKey(): string {
+  const apiKey = process.env.MEMORIES_API_KEY;
+  if (!apiKey) {
+    throw new Error("MEMORIES_API_KEY environment variable is required");
+  }
+  return apiKey;
+}
+
+// Helper function for making Memories.ai API requests
+async function makeMemoriesRequest<T>(
+  endpoint: string,
+  options: {
+    method?: string;
+    body?: any;
+    headers?: Record<string, string>;
+    isFormData?: boolean;
+  } = {},
+): Promise<T> {
+  const { method = "GET", body, headers = {}, isFormData = false } = options;
+
+  const requestHeaders = {
+    Authorization: getApiKey(),
+    ...(!isFormData && { "Content-Type": "application/json" }),
+    ...headers,
+  };
+
+  const config: RequestInit = {
+    method,
+    headers: requestHeaders,
+  };
+
+  if (body) {
+    config.body = isFormData ? body : JSON.stringify(body);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    console.error("Memories.ai API request failed:", error);
+    throw error;
+  }
+}
+
 /**
  * RESOURCES
- * Resources are data that can be read by the LLM (like GET endpoints)
- * They should not perform significant computation or have side effects
+ * Resources provide read-only access to Memories.ai data
  */
 
-// Static resource example
+// Static resource for API documentation
 server.registerResource(
-  "server-info",
-  "info://server",
+  "api-docs",
+  "memories://docs",
   {
-    title: "Server Information",
-    description: "Basic information about this MCP server",
+    title: "Memories.ai API Documentation",
+    description: "Complete API documentation and capabilities",
     mimeType: "application/json",
   },
   async (uri) => ({
@@ -50,11 +101,27 @@ server.registerResource(
         mimeType: "application/json",
         text: JSON.stringify(
           {
-            name: SERVER_INFO.name,
-            version: SERVER_INFO.version,
-            description: "A skeleton MCP server built with Bun",
-            timestamp: new Date().toISOString(),
-            capabilities: ["resources", "tools", "prompts"],
+            name: "Memories.ai API",
+            version: "v1.2",
+            baseUrl: API_BASE_URL,
+            capabilities: [
+              "Video upload from files and URLs",
+              "Semantic video search",
+              "AI video chat with context",
+              "Video transcription (audio/visual)",
+              "Session and video management",
+              "Real-time status callbacks",
+            ],
+            endpoints: {
+              upload: "/serve/api/v1/upload",
+              search: "/serve/api/v1/search",
+              chat: "/serve/api/v1/chat",
+              listVideos: "/serve/api/v1/videos",
+              listSessions: "/serve/api/v1/sessions",
+            },
+            authentication: "API Key in Authorization header",
+            supportedFormats: ["h264", "h265", "vp9", "hevc"],
+            languages: ["English (prompts and chat)"],
           },
           null,
           2,
@@ -64,62 +131,106 @@ server.registerResource(
   }),
 );
 
-// Dynamic resource example with templates
+// Dynamic resource for video details
 server.registerResource(
-  "greeting",
-  new ResourceTemplate("greeting://{name}", { list: undefined }),
+  "video",
+  new ResourceTemplate("memories://video/{videoNo}", { list: undefined }),
   {
-    title: "Personal Greeting",
-    description: "Generate a personalized greeting for any name",
+    title: "Video Details",
+    description: "Get detailed information about a specific video",
   },
-  async (uri, { name }) => ({
-    contents: [
-      {
-        uri: uri.href,
-        mimeType: "text/plain",
-        text: `Hello, ${name}! Welcome to the MCP Skeleton Server. 👋`,
-      },
-    ],
-  }),
+  async (uri, { videoNo }) => {
+    try {
+      // Note: This would require a specific API endpoint for video details
+      // For now, we'll return a placeholder structure
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              {
+                videoNo,
+                message: "Video details endpoint would be implemented here",
+                note: "Use the list-videos tool to get basic video information",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              {
+                error: error instanceof Error ? error.message : "Unknown error",
+                videoNo,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+  },
 );
 
 /**
  * TOOLS
- * Tools perform actions and can have side effects (like POST endpoints)
- * They can call external APIs, modify state, or perform computations
+ * Tools perform actions with the Memories.ai API
  */
 
-// Simple calculation tool
+// Video Upload from URL
 server.registerTool(
-  "calculate",
+  "upload-video-url",
   {
-    title: "Calculator",
-    description: "Perform basic mathematical calculations",
+    title: "Upload Video from URL",
+    description: "Upload a video to Memories.ai from a public or signed URL",
     inputSchema: {
-      expression: z
+      url: z
         .string()
-        .describe(
-          "Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')",
-        ),
-      operation: z
-        .enum(["add", "subtract", "multiply", "divide"])
+        .url()
+        .describe("Public or signed URL of the video to upload"),
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+      callback: z
+        .string()
+        .url()
         .optional()
-        .describe("Specific operation type"),
+        .describe("Optional callback URL for status notifications"),
+      video_name: z
+        .string()
+        .optional()
+        .describe("Optional custom name for the video"),
     },
   },
-  async ({ expression, operation }) => {
+  async ({ url, unique_id, callback, video_name }) => {
     try {
-      // Simple expression evaluation (in production, use a proper math parser)
-      const sanitizedExpression = expression.replace(/[^0-9+\-*/().\s]/g, "");
-      const result = Function(
-        '"use strict"; return (' + sanitizedExpression + ")",
-      )();
+      const body: any = {
+        video_url: url,
+        unique_id,
+      };
+
+      if (callback) body.callback = callback;
+      if (video_name) body.video_name = video_name;
+
+      const response = await makeMemoriesRequest("/serve/api/v1/upload_url", {
+        method: "POST",
+        body,
+      });
 
       return {
         content: [
           {
             type: "text",
-            text: `${expression} = ${result}${operation ? ` (${operation} operation)` : ""}`,
+            text: `Video upload initiated successfully!\n\nDetails:\n${JSON.stringify(response, null, 2)}`,
           },
         ],
       };
@@ -128,7 +239,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Error evaluating expression "${expression}": ${error instanceof Error ? error.message : "Unknown error"}`,
+            text: `Error uploading video: ${error instanceof Error ? error.message : "Unknown error"}`,
           },
         ],
         isError: true,
@@ -137,126 +248,457 @@ server.registerTool(
   },
 );
 
-// Tool that returns resource links
+// Video Search
 server.registerTool(
-  "list-examples",
+  "search-videos",
   {
-    title: "List Examples",
-    description: "Get a list of example resources and their descriptions",
+    title: "Search Videos",
+    description: "Search through uploaded videos using natural language",
     inputSchema: {
-      category: z
-        .enum(["all", "greetings", "info"])
-        .default("all")
-        .describe("Category of examples to list"),
+      query: z.string().describe("Natural language search query"),
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+      search_type: z
+        .enum(["BY_VIDEO", "BY_AUDIO", "BY_CLIP"])
+        .default("BY_VIDEO")
+        .describe("Type of search to perform"),
     },
   },
-  async ({ category }) => {
-    const examples = [
-      {
-        uri: "info://server",
-        name: "Server Info",
-        description: "Basic server information and capabilities",
-        category: "info",
-      },
-      {
-        uri: "greeting://Alice",
-        name: "Greeting for Alice",
-        description: "A personalized greeting",
-        category: "greetings",
-      },
-      {
-        uri: "greeting://Bob",
-        name: "Greeting for Bob",
-        description: "Another personalized greeting",
-        category: "greetings",
-      },
-    ];
-
-    const filtered =
-      category === "all"
-        ? examples
-        : examples.filter((ex) => ex.category === category);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Found ${filtered.length} examples in category "${category}":`,
+  async ({ query, unique_id, search_type }) => {
+    try {
+      const response = await makeMemoriesRequest("/serve/api/v1/search", {
+        method: "POST",
+        body: {
+          search_param: query,
+          unique_id,
+          search_type,
         },
-        ...filtered.map((example) => ({
-          type: "resource" as const,
-          resource: {
-            uri: example.uri,
-            text: `${example.name}: ${example.description}`,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Search completed successfully!\n\nQuery: "${query}"\nType: ${search_type}\n\nResults:\n${JSON.stringify(response, null, 2)}`,
           },
-        })),
-      ],
-    };
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error searching videos: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+// Video Chat
+server.registerTool(
+  "chat-with-videos",
+  {
+    title: "Chat with Videos",
+    description: "Have an AI conversation about one or more videos",
+    inputSchema: {
+      video_nos: z
+        .array(z.string())
+        .describe("Array of video IDs to chat about"),
+      prompt: z.string().describe("Your question or prompt about the videos"),
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+      session_id: z
+        .string()
+        .optional()
+        .describe("Optional session ID to continue a conversation"),
+    },
+  },
+  async ({ video_nos, prompt, unique_id, session_id }) => {
+    try {
+      const body: any = {
+        video_nos,
+        prompt,
+        unique_id,
+      };
+
+      if (session_id) body.session_id = session_id;
+
+      const response = await makeMemoriesRequest("/serve/api/v1/chat", {
+        method: "POST",
+        body,
+        headers: {
+          Accept: "text/event-stream",
+        },
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Chat response:\n\n${JSON.stringify(response, null, 2)}\n\nNote: This is a simplified response. The actual API returns streaming data.`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error chatting with videos: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+// List Videos
+server.registerTool(
+  "list-videos",
+  {
+    title: "List Videos",
+    description: "Get a list of all uploaded videos",
+    inputSchema: {
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+      page: z.number().min(1).default(1).describe("Page number for pagination"),
+      limit: z
+        .number()
+        .min(1)
+        .max(100)
+        .default(20)
+        .describe("Number of videos per page"),
+    },
+  },
+  async ({ unique_id, page, limit }) => {
+    try {
+      const response = await makeMemoriesRequest(
+        `/serve/api/v1/videos?unique_id=${unique_id}&page=${page}&limit=${limit}`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Videos retrieved successfully!\n\nPage: ${page}, Limit: ${limit}\n\n${JSON.stringify(response, null, 2)}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error listing videos: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+// List Sessions
+server.registerTool(
+  "list-sessions",
+  {
+    title: "List Chat Sessions",
+    description: "Get a list of all chat sessions",
+    inputSchema: {
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+      page: z.number().min(1).default(1).describe("Page number for pagination"),
+      limit: z
+        .number()
+        .min(1)
+        .max(100)
+        .default(20)
+        .describe("Number of sessions per page"),
+    },
+  },
+  async ({ unique_id, page, limit }) => {
+    try {
+      const response = await makeMemoriesRequest(
+        `/serve/api/v1/sessions?unique_id=${unique_id}&page=${page}&limit=${limit}`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Sessions retrieved successfully!\n\nPage: ${page}, Limit: ${limit}\n\n${JSON.stringify(response, null, 2)}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error listing sessions: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+// Delete Videos
+server.registerTool(
+  "delete-videos",
+  {
+    title: "Delete Videos",
+    description: "Delete one or more videos from Memories.ai",
+    inputSchema: {
+      video_nos: z.array(z.string()).describe("Array of video IDs to delete"),
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+    },
+  },
+  async ({ video_nos, unique_id }) => {
+    try {
+      const response = await makeMemoriesRequest("/serve/api/v1/delete", {
+        method: "POST",
+        body: {
+          video_nos,
+          unique_id,
+        },
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Videos deleted successfully!\n\nDeleted video IDs: ${video_nos.join(", ")}\n\n${JSON.stringify(response, null, 2)}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting videos: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+// Check Video Status
+server.registerTool(
+  "check-video-status",
+  {
+    title: "Check Video Status",
+    description: "Check the processing status of uploaded videos",
+    inputSchema: {
+      video_nos: z.array(z.string()).describe("Array of video IDs to check"),
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+    },
+  },
+  async ({ video_nos, unique_id }) => {
+    try {
+      const response = await makeMemoriesRequest("/serve/api/v1/status", {
+        method: "POST",
+        body: {
+          video_nos,
+          unique_id,
+        },
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Video status check completed!\n\nChecked videos: ${video_nos.join(", ")}\n\n${JSON.stringify(response, null, 2)}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error checking video status: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   },
 );
 
 /**
  * PROMPTS
- * Prompts are reusable templates that help structure LLM interactions
- * They define common patterns for how to interact with your server
+ * Prompts provide reusable templates for common Memories.ai workflows
  */
 
 server.registerPrompt(
-  "explain-server",
+  "analyze-video-content",
   {
-    title: "Explain Server",
-    description: "Generate an explanation of what this MCP server can do",
+    title: "Analyze Video Content",
+    description: "Generate prompts for analyzing video content with AI",
     argsSchema: {
-      detail_level: z
-        .enum(["basic", "detailed", "technical"])
+      analysis_type: z
+        .enum(["summary", "emotions", "objects", "activities", "transcript"])
+        .describe("Type of analysis to perform"),
+      focus_area: z
+        .string()
         .optional()
-        .describe("Level of detail in explanation"),
+        .describe(
+          "Specific area to focus on (e.g., 'facial expressions', 'background music')",
+        ),
     },
   },
-  ({ detail_level }) => ({
-    messages: [
-      {
-        role: "user",
-        content: {
-          type: "text",
-          text:
-            (detail_level || "basic") === "basic"
-              ? "Please explain what this MCP server can do in simple terms."
-              : detail_level === "detailed"
-                ? "Please provide a detailed explanation of this MCP server's capabilities, including examples of how to use each feature."
-                : "Please provide a technical explanation of this MCP server's architecture, capabilities, and implementation details.",
+  ({ analysis_type, focus_area }) => {
+    const prompts = {
+      summary:
+        "Provide a comprehensive summary of the video content, highlighting key scenes, actions, and important moments.",
+      emotions:
+        "Analyze the emotional content of this video. Identify emotional expressions, mood changes, and overall emotional tone throughout the video.",
+      objects:
+        "Identify and describe all significant objects, items, and visual elements present in this video. Include their locations and interactions.",
+      activities:
+        "Describe all activities, actions, and behaviors occurring in this video. Focus on what people are doing and how they interact.",
+      transcript:
+        "Provide a detailed transcript of all spoken content in this video, including speaker identification if multiple people are present.",
+    };
+
+    let prompt = prompts[analysis_type];
+    if (focus_area) {
+      prompt += ` Pay special attention to: ${focus_area}.`;
+    }
+
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: prompt,
+          },
         },
-      },
-    ],
-  }),
+      ],
+    };
+  },
 );
 
 server.registerPrompt(
-  "troubleshoot",
+  "video-search-query",
   {
-    title: "Troubleshooting Helper",
-    description: "Help troubleshoot issues with the MCP server",
+    title: "Video Search Query Builder",
+    description: "Help build effective search queries for finding videos",
     argsSchema: {
-      issue_description: z
+      search_intent: z
         .string()
-        .describe("Description of the issue you're experiencing"),
-      error_message: z
+        .describe("What you're looking for in the videos"),
+      search_context: z
         .string()
         .optional()
-        .describe("Any error message you received"),
+        .describe("Additional context about the search"),
+      search_type: z
+        .enum(["visual", "audio", "combined"])
+        .optional()
+        .describe("Type of content to search"),
     },
   },
-  ({ issue_description, error_message }) => ({
-    messages: [
-      {
-        role: "user",
-        content: {
-          type: "text",
-          text: `I'm having trouble with the MCP server. Here's the issue: ${issue_description}${error_message ? `\n\nError message: ${error_message}` : ""}\n\nCan you help me troubleshoot this?`,
+  ({ search_intent, search_context, search_type }) => {
+    const typeInstructions = {
+      visual:
+        "Focus on visual elements, objects, scenes, colors, actions, and visual content when searching.",
+      audio:
+        "Focus on spoken words, sounds, music, audio content, and auditory elements when searching.",
+      combined:
+        "Search across both visual and audio content to find the most relevant matches.",
+    };
+
+    let prompt = `I want to search for videos containing: ${search_intent}\n\n`;
+    prompt += `Search approach: ${typeInstructions[search_type || "combined"]}\n\n`;
+
+    if (search_context) {
+      prompt += `Additional context: ${search_context}\n\n`;
+    }
+
+    prompt +=
+      "Please help me craft an effective search query that will find the most relevant videos in my Memories.ai library.";
+
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: prompt,
+          },
         },
-      },
-    ],
-  }),
+      ],
+    };
+  },
+);
+
+server.registerPrompt(
+  "video-workflow-helper",
+  {
+    title: "Video Workflow Helper",
+    description: "Get guidance for common Memories.ai workflows",
+    argsSchema: {
+      workflow: z
+        .enum(["upload", "search", "analyze", "manage", "integrate"])
+        .describe("Type of workflow you need help with"),
+      specific_goal: z
+        .string()
+        .optional()
+        .describe("Your specific goal or use case"),
+    },
+  },
+  ({ workflow, specific_goal }) => {
+    const workflows = {
+      upload:
+        "Guide me through the process of uploading videos to Memories.ai, including best practices for file formats, naming conventions, and organization.",
+      search:
+        "Help me understand how to effectively search through my video library using Memories.ai's semantic search capabilities.",
+      analyze:
+        "Show me how to use AI to analyze video content for insights, summaries, and specific information extraction.",
+      manage:
+        "Help me organize and manage my video library, including deleting unwanted videos and organizing content.",
+      integrate:
+        "Guide me on how to integrate Memories.ai into my existing workflows and applications.",
+    };
+
+    let prompt = workflows[workflow];
+
+    if (specific_goal) {
+      prompt += `\n\nMy specific goal is: ${specific_goal}`;
+    }
+
+    prompt += "\n\nPlease provide step-by-step guidance and best practices.";
+
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: prompt,
+          },
+        },
+      ],
+    };
+  },
 );
 
 /**
@@ -265,19 +707,40 @@ server.registerPrompt(
 
 async function main() {
   try {
+    // Validate API key is available
+    try {
+      getApiKey();
+      console.error("✅ Memories.ai API key found");
+    } catch (error) {
+      console.error("❌ Missing MEMORIES_API_KEY environment variable");
+      console.error("   Please set your Memories.ai API key:");
+      console.error("   export MEMORIES_API_KEY=your_api_key_here");
+      process.exit(1);
+    }
+
     console.error(`🚀 Starting ${SERVER_INFO.name} v${SERVER_INFO.version}`);
 
-    // Connect to stdio transport (for command-line usage)
+    // Connect to stdio transport
     const transport = new StdioServerTransport();
     await server.connect(transport);
 
-    console.error("✅ MCP Server running on stdio");
-    console.error("📖 Resources available:", [
-      "server-info",
-      "greeting://{name}",
+    console.error("✅ Memories.ai MCP Server running on stdio");
+    console.error("🎥 Memories.ai API Base:", API_BASE_URL);
+    console.error("📖 Resources available:", ["api-docs", "video/{videoNo}"]);
+    console.error("🔧 Tools available:", [
+      "upload-video-url",
+      "search-videos",
+      "chat-with-videos",
+      "list-videos",
+      "list-sessions",
+      "delete-videos",
+      "check-video-status",
     ]);
-    console.error("🔧 Tools available:", ["calculate", "list-examples"]);
-    console.error("💬 Prompts available:", ["explain-server", "troubleshoot"]);
+    console.error("💬 Prompts available:", [
+      "analyze-video-content",
+      "video-search-query",
+      "video-workflow-helper",
+    ]);
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);
@@ -286,20 +749,18 @@ async function main() {
 
 // Handle graceful shutdown
 process.on("SIGINT", () => {
-  console.error("\n🛑 Shutting down MCP server...");
+  console.error("\n🛑 Shutting down Memories.ai MCP server...");
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-  console.error("\n🛑 Shutting down MCP server...");
+  console.error("\n🛑 Shutting down Memories.ai MCP server...");
   process.exit(0);
 });
 
 // Start the server
-if (import.meta.main) {
-  main().catch((error) => {
-    console.error("💥 Fatal error:", error);
-    process.exit(1);
-  });
-}
+main().catch((error) => {
+  console.error("💥 Fatal error:", error);
+  process.exit(1);
+});
 
