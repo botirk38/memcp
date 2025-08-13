@@ -1,240 +1,290 @@
-# MCP Skeleton Server
+# Memories.ai MCP Server
 
-An MCP (Model Context Protocol) server built with Node.js that enables AI agents to interact with the [Memories.ai](https://memories.ai) API, providing seamless memory management and retrieval capabilities for AI applications.
+A Model Context Protocol (MCP) server that enables AI agents to interact with the [Memories.ai](https://memories.ai) API, providing video upload, search, chat, and management capabilities for AI applications.
 
 ## Overview
 
-memcp is a Node.js-based bridge between AI agents and the Memories.ai platform, allowing agents to store, retrieve, and manage contextual memories through the standardized MCP interface. This enables AI systems to maintain persistent memory across conversations and sessions.
+This MCP server bridges AI agents with the Memories.ai platform, allowing agents to upload videos, perform semantic search, chat with video content, and manage video libraries through the standardized MCP interface.
 
 ## Features
 
-- 🧠 **Memory Management** - Create, update, and delete memories through the Memories.ai API
-- 🔍 **Smart Retrieval** - Search and retrieve relevant memories based on context
-- 🔌 **MCP Compatible** - Works with any MCP-compatible AI client
-- 🔐 **Secure Authentication** - API key-based authentication with Memories.ai
-- ⚡ **Real-time Sync** - Instant synchronization with the Memories.ai platform
-- 📝 **Structured Data** - Support for structured memory formats and metadata
+- 🎥 **Video Upload** - Upload videos from URLs to Memories.ai
+- 🔍 **Semantic Search** - Search through videos using natural language
+- 💬 **AI Video Chat** - Have conversations about video content
+- 📊 **Video Management** - List, delete, and check video status
+- 🔌 **MCP Compatible** - Works with Claude Code and other MCP clients
+- 🔐 **Secure Authentication** - API key-based authentication
+- ⚡ **Real-time Processing** - Status callbacks and streaming responses
 
 ## Prerequisites
 
-- Node.js 18+ and npm
-- A Memories.ai API key ([Get one here](https://memories.ai/api))
-- An MCP-compatible client (e.g., Claude Desktop, Continue.dev)
+- Node.js 18+ or Bun runtime
+- A Memories.ai API key ([Get one here](https://memories.ai/app/login))
+- Claude Code or another MCP-compatible client
 
 ## Installation
 
-### Using npm (recommended)
+### Local Development
 
 ```bash
-npm install -g memcp
+git clone https://github.com/yourusername/memories-ai-mcp.git
+cd memories-ai-mcp
+bun install
 ```
 
-### From source
+### Environment Setup
 
-```bash
-git clone https://github.com/yourusername/memcp.git
-cd memcp
-npm install
-npm link  # To use globally
-```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in your project root:
+Create a `.env` file:
 
 ```env
-MEMORIES_API_KEY=your_api_key_here
-MEMORIES_API_URL=https://api.memories.ai/v1  # Optional, defaults to production
-MCP_PORT=3000  # Optional, defaults to 3000
-```
+# Get your API key from: https://memories.ai/app/login (API Settings page)
+MEMORIES_API_KEY=your_memories_ai_api_key_here
 
-### MCP Client Configuration
+# Optional: Override the default API base URL
+# MEMORIES_API_BASE_URL=https://api.memories.ai
 
-Add to your MCP client configuration (e.g., `claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "memcp": {
-      "command": "node",
-      "args": ["/path/to/memcp/index.js"],
-      "env": {
-        "MEMORIES_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
-```
-
-Or if installed globally:
-
-```json
-{
-  "mcpServers": {
-    "memcp": {
-      "command": "memcp",
-      "env": {
-        "MEMORIES_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
+# Optional: Set log level for debugging
+# LOG_LEVEL=info
 ```
 
 ## Usage
 
-### Starting the Server
+### Adding to Claude Code
+
+Add the MCP server to Claude Code:
 
 ```bash
-# Using default settings
-memcp
+claude mcp add memories-ai --env MEMORIES_API_KEY=your_key_here -- node /path/to/memories-ai-mcp/dist/index.js
+```
 
-# With custom port
-memcp --port 8080
+Or with the built executable:
 
-# With debug logging
-memcp --debug
-
-# If running from source
-node index.js --port 3000
+```bash
+claude mcp add memories-ai --env MEMORIES_API_KEY=your_key_here -- /path/to/memories-ai-mcp/dist/index.js
 ```
 
 ### Available MCP Tools
 
-The server exposes the following tools to AI agents:
+The server exposes 7 tools for AI agents:
 
-#### `memories_create`
-
-Create a new memory entry
-
+#### `upload-video-url`
+Upload a video from a URL to Memories.ai
 ```json
 {
-  "content": "Important information to remember",
-  "metadata": {
-    "category": "personal",
-    "tags": ["important", "todo"]
-  }
+  "url": "https://example.com/video.mp4",
+  "unique_id": "user123",
+  "callback": "https://callback.url/webhook",
+  "video_name": "My Video"
 }
 ```
 
-#### `memories_search`
-
-Search for relevant memories
-
+#### `search-videos`
+Search through uploaded videos using natural language
 ```json
 {
-  "query": "project deadlines",
-  "limit": 10,
-  "filters": {
-    "category": "work"
-  }
+  "query": "people talking about AI",
+  "unique_id": "user123", 
+  "search_type": "BY_VIDEO"
 }
 ```
 
-#### `memories_update`
-
-Update an existing memory
-
+#### `chat-with-videos`
+Have an AI conversation about one or more videos
 ```json
 {
-  "id": "memory_123",
-  "content": "Updated information",
-  "metadata": {
-    "updated_at": "2024-01-01T00:00:00Z"
-  }
+  "video_nos": ["vid123", "vid456"],
+  "prompt": "Summarize the main points discussed",
+  "unique_id": "user123",
+  "session_id": "session123"
 }
 ```
 
-#### `memories_delete`
-
-Delete a memory
-
+#### `list-videos`
+Get a list of all uploaded videos
 ```json
 {
-  "id": "memory_123"
-}
-```
-
-#### `memories_list`
-
-List all memories with pagination
-
-```json
-{
+  "unique_id": "user123",
   "page": 1,
-  "limit": 20,
-  "sort": "created_at"
+  "limit": 20
 }
 ```
 
-## API Reference
-
-### Memory Object Structure
-
-```typescript
-interface Memory {
-  id: string;
-  content: string;
-  embedding?: number[];
-  metadata?: {
-    category?: string;
-    tags?: string[];
-    source?: string;
-    created_at: string;
-    updated_at: string;
-    [key: string]: any;
-  };
+#### `list-sessions`
+Get a list of all chat sessions
+```json
+{
+  "unique_id": "user123",
+  "page": 1,
+  "limit": 20
 }
 ```
 
-### Error Handling
+#### `delete-videos`
+Delete one or more videos
+```json
+{
+  "video_nos": ["vid123", "vid456"],
+  "unique_id": "user123"
+}
+```
 
-The server returns standardized MCP error responses:
+#### `check-video-status`
+Check the processing status of uploaded videos
+```json
+{
+  "video_nos": ["vid123"],
+  "unique_id": "user123"
+}
+```
 
-- `400` - Invalid request parameters
-- `401` - Authentication failed
-- `404` - Memory not found
-- `429` - Rate limit exceeded
-- `500` - Internal server error
+### MCP Resources
+
+#### `@memories-ai:memories://docs`
+Access complete API documentation and capabilities
+
+#### `@memories-ai:memories://video/{videoNo}`
+Get detailed information about a specific video
+
+### MCP Prompts (Slash Commands)
+
+#### `/mcp__memories_ai__analyze_video_content`
+Generate prompts for analyzing video content with AI
+- Analysis types: summary, emotions, objects, activities, transcript
+- Optional focus areas for targeted analysis
+
+#### `/mcp__memories_ai__video_search_query`
+Help build effective search queries for finding videos
+- Supports visual, audio, and combined search approaches
+- Context-aware query building
+
+#### `/mcp__memories_ai__video_workflow_helper`
+Get guidance for common Memories.ai workflows
+- Upload, search, analyze, manage, and integrate workflows
+- Step-by-step guidance and best practices
 
 ## Development
 
 ### Project Structure
 
 ```
-memcp/
-├── index.js          # Main server entry point
-├── package.json      # Project dependencies
-├── .env.example      # Example environment configuration
+memories-ai-mcp/
 ├── src/
-│   ├── server.js     # MCP server implementation
-│   ├── memories.js   # Memories.ai API client
-│   └── tools/        # MCP tool definitions
-└── test/             # Test files
+│   └── index.ts          # Main MCP server implementation
+├── dist/                 # Built JavaScript files
+├── package.json          # Project configuration
+├── tsdown.config.ts      # Build configuration
+├── tsconfig.json         # TypeScript configuration
+├── .env                  # Environment variables
+└── memories-ai-docs/     # API documentation
 ```
 
-### Running Tests
+### Available Scripts
+
+- `bun run dev` - Start development server with watch mode
+- `bun run build` - Build the project using tsdown
+- `bun run typecheck` - Run TypeScript type checking
+- `bun run start` - Start the built server
+
+### Building
 
 ```bash
-npm test
+bun run build
 ```
 
-### Running in Development
+This creates an executable `dist/index.js` file with proper shebang for direct execution.
 
+## API Reference
+
+### Memories.ai API Integration
+
+The server integrates with Memories.ai API v1.2:
+
+- **Base URL**: `https://api.memories.ai`
+- **Authentication**: API key in Authorization header
+- **Supported Formats**: h264, h265, vp9, hevc
+- **Languages**: English (prompts and chat)
+
+### Error Handling
+
+The server returns standardized MCP error responses:
+- Authentication failures
+- API rate limits
+- Invalid parameters
+- Network errors
+
+## Examples
+
+### Basic Video Upload
+```typescript
+// AI agent can use this tool automatically
+await upload_video_url({
+  url: "https://example.com/presentation.mp4",
+  unique_id: "user123",
+  video_name: "Team Presentation"
+});
+```
+
+### Semantic Video Search
+```typescript
+// Search for specific content in videos
+const results = await search_videos({
+  query: "discussion about quarterly goals",
+  unique_id: "user123",
+  search_type: "BY_VIDEO"
+});
+```
+
+### AI Video Chat
+```typescript
+// Chat about video content
+const response = await chat_with_videos({
+  video_nos: ["vid123"],
+  prompt: "What are the key action items mentioned?",
+  unique_id: "user123"
+});
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**MCP server fails to connect**: 
+- Ensure the server builds successfully with `bun run build`
+- Check that the API key is set correctly in environment variables
+- Verify Node.js version compatibility
+
+**API authentication errors**: 
+- Verify your Memories.ai API key is valid
+- Check that the key is properly set in the MCP configuration
+
+**Video upload failures**:
+- Ensure video URLs are publicly accessible
+- Check supported video formats (h264, h265, vp9, hevc)
+- Verify rate limits aren't exceeded
+
+### Debug Mode
+
+Run with debug logging:
 ```bash
-npm run dev  # Runs with nodemon for auto-reload
+claude --debug
 ```
 
-### Building and Publishing
-
-```bash
-npm run build  # If using TypeScript or build step
-npm publish    # Publish to npm registry
+Check MCP server logs in:
+```
+/Users/[username]/Library/Caches/claude-cli-nodejs/[project-path]/
 ```
 
-### Contributing
+## Dependencies
+
+- `@modelcontextprotocol/sdk` - MCP SDK for TypeScript
+- `zod` - Schema validation
+- `tsdown` - Modern TypeScript bundler
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -242,274 +292,9 @@ npm publish    # Publish to npm registry
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## Examples
+## Learn More
 
-### Basic Memory Storage
-
-```javascript
-// AI agent can use these tools automatically
-const memory = await memories_create({
-  content: "User prefers dark mode in applications",
-  metadata: {
-    category: "preferences",
-    tags: ["ui", "settings"],
-  },
-});
-```
-
-### Contextual Memory Retrieval
-
-```javascript
-// Search for relevant memories based on current context
-const memories = await memories_search({
-  query: "user preferences for UI",
-  limit: 5,
-});
-```
-
-### Programmatic Usage
-
-```javascript
-// You can also use memcp as a library
-const MemcpServer = require("memcp");
-
-const server = new MemcpServer({
-  apiKey: process.env.MEMORIES_API_KEY,
-  port: 3000,
-});
-
-server.start();
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Connection refused**: Ensure the MCP server is running and the port is not blocked
-
-**Authentication error**: Verify your Memories.ai API key is valid and properly configured
-
-**Rate limiting**: The Memories.ai API has rate limits; implement exponential backoff for retries
-
-**Node version issues**: Ensure you're using Node.js 18 or higher (`node --version`)
-
-## Dependencies
-
-Key dependencies used in this project:
-
-- `@modelcontextprotocol/sdk` - MCP SDK for Node.js
-- `axios` or `node-fetch` - HTTP client for API requests
-- `dotenv` - Environment variable management
-- `winston` - Logging library
-
-## License
-
-# MIT License - see [LICENSE](LICENSE) file for details
-
-A template/skeleton for building Model Context Protocol (MCP) servers using Bun runtime. This project demonstrates best practices for creating MCP servers with resources, tools, and prompts.
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- [Bun](https://bun.sh/) >= 1.0.0
-
-### Installation
-
-1. Clone this repository:
-
-```bash
-git clone <your-repo-url>
-cd memcp-skeleton
-```
-
-2. Install dependencies:
-
-```bash
-bun install
-```
-
-3. Run the development server:
-
-```bash
-bun run dev
-```
-
-Or start the production server:
-
-```bash
-bun run start
-```
-
-## 📋 What's Included
-
-This skeleton server demonstrates:
-
-### 🗃️ Resources
-
-- **Static Resource**: `info://server` - Server information and capabilities
-- **Dynamic Resource**: `greeting://{name}` - Personalized greetings for any name
-
-### 🔧 Tools
-
-- **Calculator**: Perform basic mathematical calculations
-- **List Examples**: Browse available resources by category
-
-### 💬 Prompts
-
-- **Explain Server**: Generate explanations about server capabilities
-- **Troubleshoot**: Help troubleshoot issues with the server
-
-## 🏗️ Project Structure
-
-```
-memcp-skeleton/
-├── src/
-│   └── index.ts          # Main server implementation
-├── package.json          # Project configuration
-├── tsconfig.json         # TypeScript configuration
-├── .gitignore           # Git ignore rules
-├── README.md            # This file
-└── memories-ai-docs/    # Documentation (can be removed)
-```
-
-## 🔨 Development
-
-### Available Scripts
-
-- `bun run dev` - Start development server with watch mode
-- `bun run start` - Start production server
-- `bun run build` - Build the project for production
-- `bun run typecheck` - Run TypeScript type checking
-- `bun run clean` - Clean build artifacts
-
-### Adding New Features
-
-#### Resources
-
-Resources are read-only data that can be accessed by LLMs:
-
-```typescript
-server.registerResource(
-  "my-resource",
-  "my-scheme://my-resource",
-  {
-    title: "My Resource",
-    description: "Description of my resource",
-  },
-  async (uri) => ({
-    contents: [
-      {
-        uri: uri.href,
-        text: "Resource content here",
-      },
-    ],
-  }),
-);
-```
-
-#### Tools
-
-Tools perform actions and can have side effects:
-
-```typescript
-server.registerTool(
-  "my-tool",
-  {
-    title: "My Tool",
-    description: "What my tool does",
-    inputSchema: {
-      param: z.string().describe("Parameter description"),
-    },
-  },
-  async ({ param }) => ({
-    content: [
-      {
-        type: "text",
-        text: `Result: ${param}`,
-      },
-    ],
-  }),
-);
-```
-
-#### Prompts
-
-Prompts are reusable templates for LLM interactions:
-
-```typescript
-server.registerPrompt(
-  "my-prompt",
-  {
-    title: "My Prompt",
-    description: "What my prompt does",
-    argsSchema: {
-      input: z.string().describe("Input parameter"),
-    },
-  },
-  ({ input }) => ({
-    messages: [
-      {
-        role: "user",
-        content: {
-          type: "text",
-          text: `Process this: ${input}`,
-        },
-      },
-    ],
-  }),
-);
-```
-
-## 🧪 Testing
-
-The server can be tested using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
-
-```bash
-npx @modelcontextprotocol/inspector bun run src/index.ts
-```
-
-## 📚 Learn More
-
+- [Memories.ai API Documentation](https://memories.ai/api)
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
+- [Claude Code MCP Guide](https://docs.anthropic.com/en/docs/claude-code/mcp)
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
-- [Bun Documentation](https://bun.sh/docs)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🏷️ Customization
-
-To customize this skeleton for your own project:
-
-1. Update `package.json` with your project details
-2. Modify the server name and version in `src/index.ts`
-3. Replace the example resources, tools, and prompts with your own
-4. Update this README with your project-specific information
-5. Add your own dependencies as needed
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-- **"Module not found"**: Make sure you've run `bun install`
-- **TypeScript errors**: Run `bun run typecheck` to see detailed type errors
-- **Server won't start**: Check that you have Bun >= 1.0.0 installed
-
-### Getting Help
-
-If you encounter issues:
-
-1. Check the [MCP documentation](https://modelcontextprotocol.io/)
-2. Look at the [TypeScript SDK examples](https://github.com/modelcontextprotocol/typescript-sdk)
-3. Use the troubleshooting prompt included in this server
-4. Open an issue in this repository
