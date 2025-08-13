@@ -1,0 +1,58 @@
+{
+  "name": "memcp-skeleton",
+  "version": "1.0.0",
+  "description": "Skeleton MCP Server using Bun - A template for building Model Context Protocol servers",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "memcp-skeleton": "src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "dev:build": "tsdown --watch",
+    "start": "bun run src/index.ts",
+    "start:dist": "node dist/index.mjs",
+    "build": "tsdown",
+    "typecheck": "bun tsc --noEmit",
+    "lint": "echo 'Add your preferred linter here'",
+    "test": "bun test",
+    "clean": "rm -rf dist build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.2",
+    "tsdown": "^0.14.1"
+  },
+  "files": [
+    "src/",
+    "dist/",
+    "README.md"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "bun",
+    "skeleton",
+    "template",
+    "ai",
+    "llm",
+    "server"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/memcp-skeleton.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/memcp-skeleton/issues"
+  },
+  "homepage": "https://github.com/yourusername/memcp-skeleton#readme"
+}

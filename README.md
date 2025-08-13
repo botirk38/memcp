@@ -1,4 +1,4 @@
-# memcp
+# MCP Skeleton Server
 
 An MCP (Model Context Protocol) server built with Node.js that enables AI agents to interact with the [Memories.ai](https://memories.ai) API, providing seamless memory management and retrieval capabilities for AI applications.
 
@@ -106,7 +106,9 @@ node index.js --port 3000
 The server exposes the following tools to AI agents:
 
 #### `memories_create`
+
 Create a new memory entry
+
 ```json
 {
   "content": "Important information to remember",
@@ -118,7 +120,9 @@ Create a new memory entry
 ```
 
 #### `memories_search`
+
 Search for relevant memories
+
 ```json
 {
   "query": "project deadlines",
@@ -130,7 +134,9 @@ Search for relevant memories
 ```
 
 #### `memories_update`
+
 Update an existing memory
+
 ```json
 {
   "id": "memory_123",
@@ -142,7 +148,9 @@ Update an existing memory
 ```
 
 #### `memories_delete`
+
 Delete a memory
+
 ```json
 {
   "id": "memory_123"
@@ -150,7 +158,9 @@ Delete a memory
 ```
 
 #### `memories_list`
+
 List all memories with pagination
+
 ```json
 {
   "page": 1,
@@ -242,8 +252,8 @@ const memory = await memories_create({
   content: "User prefers dark mode in applications",
   metadata: {
     category: "preferences",
-    tags: ["ui", "settings"]
-  }
+    tags: ["ui", "settings"],
+  },
 });
 ```
 
@@ -253,7 +263,7 @@ const memory = await memories_create({
 // Search for relevant memories based on current context
 const memories = await memories_search({
   query: "user preferences for UI",
-  limit: 5
+  limit: 5,
 });
 ```
 
@@ -261,11 +271,11 @@ const memories = await memories_search({
 
 ```javascript
 // You can also use memcp as a library
-const MemcpServer = require('memcp');
+const MemcpServer = require("memcp");
 
 const server = new MemcpServer({
   apiKey: process.env.MEMORIES_API_KEY,
-  port: 3000
+  port: 3000,
 });
 
 server.start();
@@ -294,4 +304,212 @@ Key dependencies used in this project:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+# MIT License - see [LICENSE](LICENSE) file for details
+
+A template/skeleton for building Model Context Protocol (MCP) servers using Bun runtime. This project demonstrates best practices for creating MCP servers with resources, tools, and prompts.
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) >= 1.0.0
+
+### Installation
+
+1. Clone this repository:
+
+```bash
+git clone <your-repo-url>
+cd memcp-skeleton
+```
+
+2. Install dependencies:
+
+```bash
+bun install
+```
+
+3. Run the development server:
+
+```bash
+bun run dev
+```
+
+Or start the production server:
+
+```bash
+bun run start
+```
+
+## 📋 What's Included
+
+This skeleton server demonstrates:
+
+### 🗃️ Resources
+
+- **Static Resource**: `info://server` - Server information and capabilities
+- **Dynamic Resource**: `greeting://{name}` - Personalized greetings for any name
+
+### 🔧 Tools
+
+- **Calculator**: Perform basic mathematical calculations
+- **List Examples**: Browse available resources by category
+
+### 💬 Prompts
+
+- **Explain Server**: Generate explanations about server capabilities
+- **Troubleshoot**: Help troubleshoot issues with the server
+
+## 🏗️ Project Structure
+
+```
+memcp-skeleton/
+├── src/
+│   └── index.ts          # Main server implementation
+├── package.json          # Project configuration
+├── tsconfig.json         # TypeScript configuration
+├── .gitignore           # Git ignore rules
+├── README.md            # This file
+└── memories-ai-docs/    # Documentation (can be removed)
+```
+
+## 🔨 Development
+
+### Available Scripts
+
+- `bun run dev` - Start development server with watch mode
+- `bun run start` - Start production server
+- `bun run build` - Build the project for production
+- `bun run typecheck` - Run TypeScript type checking
+- `bun run clean` - Clean build artifacts
+
+### Adding New Features
+
+#### Resources
+
+Resources are read-only data that can be accessed by LLMs:
+
+```typescript
+server.registerResource(
+  "my-resource",
+  "my-scheme://my-resource",
+  {
+    title: "My Resource",
+    description: "Description of my resource",
+  },
+  async (uri) => ({
+    contents: [
+      {
+        uri: uri.href,
+        text: "Resource content here",
+      },
+    ],
+  }),
+);
+```
+
+#### Tools
+
+Tools perform actions and can have side effects:
+
+```typescript
+server.registerTool(
+  "my-tool",
+  {
+    title: "My Tool",
+    description: "What my tool does",
+    inputSchema: {
+      param: z.string().describe("Parameter description"),
+    },
+  },
+  async ({ param }) => ({
+    content: [
+      {
+        type: "text",
+        text: `Result: ${param}`,
+      },
+    ],
+  }),
+);
+```
+
+#### Prompts
+
+Prompts are reusable templates for LLM interactions:
+
+```typescript
+server.registerPrompt(
+  "my-prompt",
+  {
+    title: "My Prompt",
+    description: "What my prompt does",
+    argsSchema: {
+      input: z.string().describe("Input parameter"),
+    },
+  },
+  ({ input }) => ({
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: `Process this: ${input}`,
+        },
+      },
+    ],
+  }),
+);
+```
+
+## 🧪 Testing
+
+The server can be tested using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```bash
+npx @modelcontextprotocol/inspector bun run src/index.ts
+```
+
+## 📚 Learn More
+
+- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
+- [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+- [Bun Documentation](https://bun.sh/docs)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🏷️ Customization
+
+To customize this skeleton for your own project:
+
+1. Update `package.json` with your project details
+2. Modify the server name and version in `src/index.ts`
+3. Replace the example resources, tools, and prompts with your own
+4. Update this README with your project-specific information
+5. Add your own dependencies as needed
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+- **"Module not found"**: Make sure you've run `bun install`
+- **TypeScript errors**: Run `bun run typecheck` to see detailed type errors
+- **Server won't start**: Check that you have Bun >= 1.0.0 installed
+
+### Getting Help
+
+If you encounter issues:
+
+1. Check the [MCP documentation](https://modelcontextprotocol.io/)
+2. Look at the [TypeScript SDK examples](https://github.com/modelcontextprotocol/typescript-sdk)
+3. Use the troubleshooting prompt included in this server
+4. Open an issue in this repository

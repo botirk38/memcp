@@ -1,231 +1,305 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+/**
+ * MCP Server Skeleton using Bun
+ *
+ * This is a template/skeleton for building Model Context Protocol servers.
+ * It demonstrates the basic patterns for resources, tools, and prompts.
+ *
+ * Usage:
+ *   bun run src/index.ts
+ *   bun run dev (with --watch)
+ */
+
+import {
+  McpServer,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const NWS_API_BASE = "https://api.weather.gov";
-const USER_AGENT = "weather-app/1.0";
-
-// Create server instance
-const server = new McpServer({
-  name: "weather",
+// Server configuration
+const SERVER_INFO = {
+  name: "memcp-skeleton",
   version: "1.0.0",
-  capabilities: {
-    resources: {},
-    tools: {},
-  },
+} as const;
+
+// Create the MCP server instance
+const server = new McpServer({
+  name: SERVER_INFO.name,
+  version: SERVER_INFO.version,
 });
 
-// Helper function for making NWS API requests
-async function makeNWSRequest<T>(url: string): Promise<T | null> {
-  const headers = {
-    "User-Agent": USER_AGENT,
-    Accept: "application/geo+json",
-  };
+/**
+ * RESOURCES
+ * Resources are data that can be read by the LLM (like GET endpoints)
+ * They should not perform significant computation or have side effects
+ */
 
-  try {
-    const response = await fetch(url, { headers });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+// Static resource example
+server.registerResource(
+  "server-info",
+  "info://server",
+  {
+    title: "Server Information",
+    description: "Basic information about this MCP server",
+    mimeType: "application/json",
+  },
+  async (uri) => ({
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: "application/json",
+        text: JSON.stringify(
+          {
+            name: SERVER_INFO.name,
+            version: SERVER_INFO.version,
+            description: "A skeleton MCP server built with Bun",
+            timestamp: new Date().toISOString(),
+            capabilities: ["resources", "tools", "prompts"],
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  }),
+);
+
+// Dynamic resource example with templates
+server.registerResource(
+  "greeting",
+  new ResourceTemplate("greeting://{name}", { list: undefined }),
+  {
+    title: "Personal Greeting",
+    description: "Generate a personalized greeting for any name",
+  },
+  async (uri, { name }) => ({
+    contents: [
+      {
+        uri: uri.href,
+        mimeType: "text/plain",
+        text: `Hello, ${name}! Welcome to the MCP Skeleton Server. 👋`,
+      },
+    ],
+  }),
+);
+
+/**
+ * TOOLS
+ * Tools perform actions and can have side effects (like POST endpoints)
+ * They can call external APIs, modify state, or perform computations
+ */
+
+// Simple calculation tool
+server.registerTool(
+  "calculate",
+  {
+    title: "Calculator",
+    description: "Perform basic mathematical calculations",
+    inputSchema: {
+      expression: z
+        .string()
+        .describe(
+          "Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')",
+        ),
+      operation: z
+        .enum(["add", "subtract", "multiply", "divide"])
+        .optional()
+        .describe("Specific operation type"),
+    },
+  },
+  async ({ expression, operation }) => {
+    try {
+      // Simple expression evaluation (in production, use a proper math parser)
+      const sanitizedExpression = expression.replace(/[^0-9+\-*/().\s]/g, "");
+      const result = Function(
+        '"use strict"; return (' + sanitizedExpression + ")",
+      )();
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `${expression} = ${result}${operation ? ` (${operation} operation)` : ""}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error evaluating expression "${expression}": ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-    return (await response.json()) as T;
+  },
+);
+
+// Tool that returns resource links
+server.registerTool(
+  "list-examples",
+  {
+    title: "List Examples",
+    description: "Get a list of example resources and their descriptions",
+    inputSchema: {
+      category: z
+        .enum(["all", "greetings", "info"])
+        .default("all")
+        .describe("Category of examples to list"),
+    },
+  },
+  async ({ category }) => {
+    const examples = [
+      {
+        uri: "info://server",
+        name: "Server Info",
+        description: "Basic server information and capabilities",
+        category: "info",
+      },
+      {
+        uri: "greeting://Alice",
+        name: "Greeting for Alice",
+        description: "A personalized greeting",
+        category: "greetings",
+      },
+      {
+        uri: "greeting://Bob",
+        name: "Greeting for Bob",
+        description: "Another personalized greeting",
+        category: "greetings",
+      },
+    ];
+
+    const filtered =
+      category === "all"
+        ? examples
+        : examples.filter((ex) => ex.category === category);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Found ${filtered.length} examples in category "${category}":`,
+        },
+        ...filtered.map((example) => ({
+          type: "resource" as const,
+          resource: {
+            uri: example.uri,
+            text: `${example.name}: ${example.description}`,
+          },
+        })),
+      ],
+    };
+  },
+);
+
+/**
+ * PROMPTS
+ * Prompts are reusable templates that help structure LLM interactions
+ * They define common patterns for how to interact with your server
+ */
+
+server.registerPrompt(
+  "explain-server",
+  {
+    title: "Explain Server",
+    description: "Generate an explanation of what this MCP server can do",
+    argsSchema: {
+      detail_level: z
+        .enum(["basic", "detailed", "technical"])
+        .optional()
+        .describe("Level of detail in explanation"),
+    },
+  },
+  ({ detail_level }) => ({
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text:
+            (detail_level || "basic") === "basic"
+              ? "Please explain what this MCP server can do in simple terms."
+              : detail_level === "detailed"
+                ? "Please provide a detailed explanation of this MCP server's capabilities, including examples of how to use each feature."
+                : "Please provide a technical explanation of this MCP server's architecture, capabilities, and implementation details.",
+        },
+      },
+    ],
+  }),
+);
+
+server.registerPrompt(
+  "troubleshoot",
+  {
+    title: "Troubleshooting Helper",
+    description: "Help troubleshoot issues with the MCP server",
+    argsSchema: {
+      issue_description: z
+        .string()
+        .describe("Description of the issue you're experiencing"),
+      error_message: z
+        .string()
+        .optional()
+        .describe("Any error message you received"),
+    },
+  },
+  ({ issue_description, error_message }) => ({
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: `I'm having trouble with the MCP server. Here's the issue: ${issue_description}${error_message ? `\n\nError message: ${error_message}` : ""}\n\nCan you help me troubleshoot this?`,
+        },
+      },
+    ],
+  }),
+);
+
+/**
+ * SERVER STARTUP
+ */
+
+async function main() {
+  try {
+    console.error(`🚀 Starting ${SERVER_INFO.name} v${SERVER_INFO.version}`);
+
+    // Connect to stdio transport (for command-line usage)
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+
+    console.error("✅ MCP Server running on stdio");
+    console.error("📖 Resources available:", [
+      "server-info",
+      "greeting://{name}",
+    ]);
+    console.error("🔧 Tools available:", ["calculate", "list-examples"]);
+    console.error("💬 Prompts available:", ["explain-server", "troubleshoot"]);
   } catch (error) {
-    console.error("Error making NWS request:", error);
-    return null;
+    console.error("❌ Failed to start server:", error);
+    process.exit(1);
   }
 }
 
-interface AlertFeature {
-  properties: {
-    event?: string;
-    areaDesc?: string;
-    severity?: string;
-    status?: string;
-    headline?: string;
-  };
-}
-
-// Format alert data
-function formatAlert(feature: AlertFeature): string {
-  const props = feature.properties;
-  return [
-    `Event: ${props.event || "Unknown"}`,
-    `Area: ${props.areaDesc || "Unknown"}`,
-    `Severity: ${props.severity || "Unknown"}`,
-    `Status: ${props.status || "Unknown"}`,
-    `Headline: ${props.headline || "No headline"}`,
-    "---",
-  ].join("\n");
-}
-
-interface ForecastPeriod {
-  name?: string;
-  temperature?: number;
-  temperatureUnit?: string;
-  windSpeed?: string;
-  windDirection?: string;
-  shortForecast?: string;
-}
-
-interface AlertsResponse {
-  features: AlertFeature[];
-}
-
-interface PointsResponse {
-  properties: {
-    forecast?: string;
-  };
-}
-
-interface ForecastResponse {
-  properties: {
-    periods: ForecastPeriod[];
-  };
-}
-
-
-// Register weather tools
-server.tool(
-  "get_alerts",
-  "Get weather alerts for a state",
-  {
-    state: z.string().length(2).describe("Two-letter state code (e.g. CA, NY)"),
-  },
-  async ({ state }) => {
-    const stateCode = state.toUpperCase();
-    const alertsUrl = `${NWS_API_BASE}/alerts?area=${stateCode}`;
-    const alertsData = await makeNWSRequest<AlertsResponse>(alertsUrl);
-
-    if (!alertsData) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Failed to retrieve alerts data",
-          },
-        ],
-      };
-    }
-
-    const features = alertsData.features || [];
-    if (features.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `No active alerts for ${stateCode}`,
-          },
-        ],
-      };
-    }
-
-    const formattedAlerts = features.map(formatAlert);
-    const alertsText = `Active alerts for ${stateCode}:\n\n${formattedAlerts.join("\n")}`;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: alertsText,
-        },
-      ],
-    };
-  },
-);
-
-server.tool(
-  "get_forecast",
-  "Get weather forecast for a location",
-  {
-    latitude: z.number().min(-90).max(90).describe("Latitude of the location"),
-    longitude: z
-      .number()
-      .min(-180)
-      .max(180)
-      .describe("Longitude of the location"),
-  },
-  async ({ latitude, longitude }) => {
-    // Get grid point data
-    const pointsUrl = `${NWS_API_BASE}/points/${latitude.toFixed(4)},${longitude.toFixed(4)}`;
-    const pointsData = await makeNWSRequest<PointsResponse>(pointsUrl);
-
-    if (!pointsData) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Failed to retrieve grid point data for coordinates: ${latitude}, ${longitude}. This location may not be supported by the NWS API (only US locations are supported).`,
-          },
-        ],
-      };
-    }
-
-    const forecastUrl = pointsData.properties?.forecast;
-    if (!forecastUrl) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Failed to get forecast URL from grid point data",
-          },
-        ],
-      };
-    }
-
-    // Get forecast data
-    const forecastData = await makeNWSRequest<ForecastResponse>(forecastUrl);
-    if (!forecastData) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Failed to retrieve forecast data",
-          },
-        ],
-      };
-    }
-
-    const periods = forecastData.properties?.periods || [];
-    if (periods.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "No forecast periods available",
-          },
-        ],
-      };
-    }
-
-    // Format forecast periods
-    const formattedForecast = periods.map((period: ForecastPeriod) =>
-      [
-        `${period.name || "Unknown"}:`,
-        `Temperature: ${period.temperature || "Unknown"}°${period.temperatureUnit || "F"}`,
-        `Wind: ${period.windSpeed || "Unknown"} ${period.windDirection || ""}`,
-        `${period.shortForecast || "No forecast available"}`,
-        "---",
-      ].join("\n"),
-    );
-
-    const forecastText = `Forecast for ${latitude}, ${longitude}:\n\n${formattedForecast.join("\n")}`;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: forecastText,
-        },
-      ],
-    };
-  },
-);
-
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Weather MCP Server running on stdio");
-}
-
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
+// Handle graceful shutdown
+process.on("SIGINT", () => {
+  console.error("\n🛑 Shutting down MCP server...");
+  process.exit(0);
 });
+
+process.on("SIGTERM", () => {
+  console.error("\n🛑 Shutting down MCP server...");
+  process.exit(0);
+});
+
+// Start the server
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error("💥 Fatal error:", error);
+    process.exit(1);
+  });
+}
+
