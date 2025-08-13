@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "bin": {
+    "src": "index.ts"
+  },
+  "scripts": {
+    "build": "tsc && chmod 755 index.ts"
+  },
+  "files": [
+    "build"
+  ]
+}
