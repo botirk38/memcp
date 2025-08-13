@@ -15,6 +15,8 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import * as fs from "fs";
+import * as path from "path";
 
 // Server configuration
 const SERVER_INFO = {
@@ -30,13 +32,31 @@ const server = new McpServer({
   version: SERVER_INFO.version,
 });
 
-// Helper function to get API key from environment
-function getApiKey(): string {
-  const apiKey = process.env.MEMORIES_API_KEY;
+// Helper function to get API key from environment or parameter
+function getApiKey(providedKey?: string): string {
+  const apiKey = providedKey || process.env.MEMORIES_API_KEY;
   if (!apiKey) {
-    throw new Error("MEMORIES_API_KEY environment variable is required");
+    throw new Error("API key is required. Provide it via MEMORIES_API_KEY environment variable or as a parameter.");
   }
   return apiKey;
+}
+
+// Helper function to get video MIME type from file extension
+function getVideoMimeType(extension: string): string {
+  const mimeTypes: Record<string, string> = {
+    '.mp4': 'video/mp4',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.wmv': 'video/x-ms-wmv',
+    '.flv': 'video/x-flv',
+    '.webm': 'video/webm',
+    '.mkv': 'video/x-matroska',
+    '.m4v': 'video/x-m4v',
+    '.3gp': 'video/3gpp',
+    '.ts': 'video/mp2t',
+  };
+  
+  return mimeTypes[extension.toLowerCase()] || 'video/mp4';
 }
 
 // Helper function for making Memories.ai API requests
@@ -47,12 +67,13 @@ async function makeMemoriesRequest<T>(
     body?: any;
     headers?: Record<string, string>;
     isFormData?: boolean;
+    apiKey?: string;
   } = {},
 ): Promise<T> {
-  const { method = "GET", body, headers = {}, isFormData = false } = options;
+  const { method = "GET", body, headers = {}, isFormData = false, apiKey } = options;
 
   const requestHeaders = {
-    Authorization: getApiKey(),
+    Authorization: getApiKey(apiKey),
     ...(!isFormData && { "Content-Type": "application/json" }),
     ...headers,
   };
@@ -186,6 +207,106 @@ server.registerResource(
  * Tools perform actions with the Memories.ai API
  */
 
+// Video Upload from File
+server.registerTool(
+  "upload-video-file",
+  {
+    title: "Upload Video from File",
+    description: "Upload a video file to Memories.ai from local storage",
+    inputSchema: {
+      file_path: z
+        .string()
+        .describe("Path to the video file to upload"),
+      unique_id: z
+        .string()
+        .describe("Unique ID for workspace/namespace/user identification"),
+      callback: z
+        .string()
+        .url()
+        .optional()
+        .describe("Optional callback URL for status notifications"),
+      video_name: z
+        .string()
+        .optional()
+        .describe("Optional custom name for the video"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
+    },
+  },
+  async ({ file_path, unique_id, callback, video_name, api_key }) => {
+    try {
+      // Check if file exists
+      if (!fs.existsSync(file_path)) {
+        throw new Error(`File not found: ${file_path}`);
+      }
+
+      // Get file stats
+      const stats = fs.statSync(file_path);
+      if (!stats.isFile()) {
+        throw new Error(`Path is not a file: ${file_path}`);
+      }
+
+      // Read file as buffer
+      const fileBuffer = fs.readFileSync(file_path);
+      const fileName = video_name || path.basename(file_path);
+      
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      
+      // Create a Blob from the buffer (Node.js compatible)
+      const blob = new Blob([fileBuffer], { 
+        type: getVideoMimeType(path.extname(file_path)) 
+      });
+      
+      formData.append('file', blob, fileName);
+      formData.append('unique_id', unique_id);
+      if (callback) formData.append('callback', callback);
+
+      const response = await makeMemoriesRequest("/serve/api/v1/upload", {
+        method: "POST",
+        body: formData,
+        isFormData: true,
+        apiKey: api_key,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `File upload completed successfully!
+
+File: ${file_path}
+Size: ${(stats.size / 1024 / 1024).toFixed(2)} MB
+Name: ${fileName}
+Unique ID: ${unique_id}
+
+Response:
+${JSON.stringify(response, null, 2)}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error uploading file: ${error instanceof Error ? error.message : "Unknown error"}
+
+Troubleshooting:
+- Ensure the file path is correct and accessible
+- Check that the file is a supported video format (h264, h265, vp9, hevc)
+- Verify the file isn't corrupted or too large
+- Consider using upload-video-url if the file is accessible via URL`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
 // Video Upload from URL
 server.registerTool(
   "upload-video-url",
@@ -209,9 +330,13 @@ server.registerTool(
         .string()
         .optional()
         .describe("Optional custom name for the video"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ url, unique_id, callback, video_name }) => {
+  async ({ url, unique_id, callback, video_name, api_key }) => {
     try {
       const body: any = {
         video_url: url,
@@ -224,6 +349,7 @@ server.registerTool(
       const response = await makeMemoriesRequest("/serve/api/v1/upload_url", {
         method: "POST",
         body,
+        apiKey: api_key,
       });
 
       return {
@@ -263,9 +389,13 @@ server.registerTool(
         .enum(["BY_VIDEO", "BY_AUDIO", "BY_CLIP"])
         .default("BY_VIDEO")
         .describe("Type of search to perform"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ query, unique_id, search_type }) => {
+  async ({ query, unique_id, search_type, api_key }) => {
     try {
       const response = await makeMemoriesRequest("/serve/api/v1/search", {
         method: "POST",
@@ -274,6 +404,7 @@ server.registerTool(
           unique_id,
           search_type,
         },
+        apiKey: api_key,
       });
 
       return {
@@ -316,9 +447,13 @@ server.registerTool(
         .string()
         .optional()
         .describe("Optional session ID to continue a conversation"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ video_nos, prompt, unique_id, session_id }) => {
+  async ({ video_nos, prompt, unique_id, session_id, api_key }) => {
     try {
       const body: any = {
         video_nos,
@@ -334,6 +469,7 @@ server.registerTool(
         headers: {
           Accept: "text/event-stream",
         },
+        apiKey: api_key,
       });
 
       return {
@@ -375,12 +511,17 @@ server.registerTool(
         .max(100)
         .default(20)
         .describe("Number of videos per page"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ unique_id, page, limit }) => {
+  async ({ unique_id, page, limit, api_key }) => {
     try {
       const response = await makeMemoriesRequest(
         `/serve/api/v1/videos?unique_id=${unique_id}&page=${page}&limit=${limit}`,
+        { apiKey: api_key },
       );
 
       return {
@@ -422,12 +563,17 @@ server.registerTool(
         .max(100)
         .default(20)
         .describe("Number of sessions per page"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ unique_id, page, limit }) => {
+  async ({ unique_id, page, limit, api_key }) => {
     try {
       const response = await makeMemoriesRequest(
         `/serve/api/v1/sessions?unique_id=${unique_id}&page=${page}&limit=${limit}`,
+        { apiKey: api_key },
       );
 
       return {
@@ -463,9 +609,13 @@ server.registerTool(
       unique_id: z
         .string()
         .describe("Unique ID for workspace/namespace/user identification"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ video_nos, unique_id }) => {
+  async ({ video_nos, unique_id, api_key }) => {
     try {
       const response = await makeMemoriesRequest("/serve/api/v1/delete", {
         method: "POST",
@@ -473,6 +623,7 @@ server.registerTool(
           video_nos,
           unique_id,
         },
+        apiKey: api_key,
       });
 
       return {
@@ -508,9 +659,13 @@ server.registerTool(
       unique_id: z
         .string()
         .describe("Unique ID for workspace/namespace/user identification"),
+      api_key: z
+        .string()
+        .optional()
+        .describe("Optional Memories.ai API key (overrides environment variable)"),
     },
   },
-  async ({ video_nos, unique_id }) => {
+  async ({ video_nos, unique_id, api_key }) => {
     try {
       const response = await makeMemoriesRequest("/serve/api/v1/status", {
         method: "POST",
@@ -518,6 +673,7 @@ server.registerTool(
           video_nos,
           unique_id,
         },
+        apiKey: api_key,
       });
 
       return {
@@ -707,15 +863,13 @@ server.registerPrompt(
 
 async function main() {
   try {
-    // Validate API key is available
+    // Check for API key in environment (optional now)
     try {
       getApiKey();
-      console.error("✅ Memories.ai API key found");
+      console.error("✅ Memories.ai API key found in environment");
     } catch (error) {
-      console.error("❌ Missing MEMORIES_API_KEY environment variable");
-      console.error("   Please set your Memories.ai API key:");
-      console.error("   export MEMORIES_API_KEY=your_api_key_here");
-      process.exit(1);
+      console.error("⚠️  No API key in environment - users can provide it per request");
+      console.error("   To set globally: export MEMORIES_API_KEY=your_api_key_here");
     }
 
     console.error(`🚀 Starting ${SERVER_INFO.name} v${SERVER_INFO.version}`);
@@ -728,6 +882,7 @@ async function main() {
     console.error("🎥 Memories.ai API Base:", API_BASE_URL);
     console.error("📖 Resources available:", ["api-docs", "video/{videoNo}"]);
     console.error("🔧 Tools available:", [
+      "upload-video-file",
       "upload-video-url",
       "search-videos",
       "chat-with-videos",
