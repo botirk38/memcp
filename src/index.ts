@@ -109,6 +109,129 @@ async function makeMemoriesRequest<T>(
   }
 }
 
+// Helper function for making streaming Memories.ai chat requests
+async function makeMemoriesChatRequest(
+  endpoint: string,
+  options: {
+    body: any;
+    headers?: Record<string, string>;
+    apiKey?: string;
+  },
+): Promise<string> {
+  const { body, headers = {}, apiKey } = options;
+
+  const requestHeaders = {
+    Authorization: getApiKey(apiKey),
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+    ...headers,
+  };
+
+  const config: RequestInit = {
+    method: "POST",
+    headers: requestHeaders,
+    body: JSON.stringify(body),
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("No response body for streaming request");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = "";
+    let chatContent = "";
+    let sessionId = "";
+    let lastError = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        fullResponse += chunk;
+
+        // Process Server-Sent Events line by line
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.trim().startsWith('data:')) {
+            const dataContent = line.replace('data:', '').trim();
+            
+            // Check for completion
+            if (dataContent === '"Done"' || dataContent === 'Done') {
+              return {
+                sessionId,
+                content: chatContent,
+                status: "completed"
+              } as any;
+            }
+            
+            // Check for errors
+            if (dataContent.includes('"Error"') || dataContent.includes('error') || 
+                dataContent.includes('not parsed') || dataContent.includes('not found') ||
+                dataContent.includes("don't login")) {
+              lastError = dataContent;
+              continue;
+            }
+
+            // Try to parse JSON content
+            try {
+              if (dataContent.startsWith('{') && dataContent.endsWith('}')) {
+                const parsed = JSON.parse(dataContent);
+                
+                if (parsed.sessionId) {
+                  sessionId = parsed.sessionId;
+                }
+                
+                if (parsed.type === "content" && parsed.content) {
+                  chatContent += parsed.content;
+                } else if (parsed.type === "thinking") {
+                  // Add thinking context
+                  chatContent += `[Thinking: ${parsed.title || parsed.content}]\n`;
+                } else if (parsed.type === "ref") {
+                  // Add reference information  
+                  chatContent += `[Referenced video content]\n`;
+                }
+              }
+            } catch (parseError) {
+              // If not JSON, might be plain text content
+              if (dataContent && !dataContent.includes('{') && dataContent !== 'null') {
+                chatContent += dataContent;
+              }
+            }
+          }
+        }
+      }
+
+      // If we get here without "Done", check for errors
+      if (lastError) {
+        throw new Error(`Chat API error: ${lastError}`);
+      }
+
+      return {
+        sessionId,
+        content: chatContent || "Response received but no content generated.",
+        status: "completed",
+        fullResponse: fullResponse.substring(0, 1000) + "..." // Truncated for debugging
+      } as any;
+
+    } finally {
+      reader.releaseLock();
+    }
+  } catch (error) {
+    console.error("Memories.ai streaming chat request failed:", error);
+    throw error;
+  }
+}
+
 /**
  * RESOURCES
  * Resources provide read-only access to Memories.ai data
@@ -479,12 +602,8 @@ server.registerTool(
 
       if (session_id) body.session_id = session_id;
 
-      const response = await makeMemoriesRequest("/serve/api/v1/chat", {
-        method: "POST",
+      const response = await makeMemoriesChatRequest("/serve/api/v1/chat", {
         body,
-        headers: {
-          Accept: "text/event-stream",
-        },
         apiKey: api_key,
       });
 
@@ -492,7 +611,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Chat response:\n\n${JSON.stringify(response, null, 2)}\n\nNote: This is a simplified response. The actual API returns streaming data.`,
+            text: `Chat completed successfully!\n\nPrompt: "${prompt}"\nVideos: ${video_nos.join(", ")}\n\nAI Response:\n${response.content}\n\nSession ID: ${response.sessionId}`,
           },
         ],
       };
@@ -501,7 +620,7 @@ server.registerTool(
         content: [
           {
             type: "text",
-            text: `Error chatting with videos: ${error instanceof Error ? error.message : "Unknown error"}`,
+            text: `Error chatting with videos: ${error instanceof Error ? error.message : "Unknown error"}\n\nTroubleshooting:\n- Ensure videos are in PARSE status (fully processed)\n- Check that video IDs are correct\n- Verify API key has chat permissions\n- Try with a simpler prompt in English only`,
           },
         ],
         isError: true,
