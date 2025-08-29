@@ -13,10 +13,7 @@ build/
 
 # Runtime
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+
 
 # Logs
 logs/
@@ -69,7 +66,6 @@ jspm_packages/
 
 # Bun
 .bun
-bun.lockb
+bun.lock
 
-# Legacy
-/src/node_modules/*
+
