@@ -1,35 +1,44 @@
 # Memories.ai MCP Server
 
-A Model Context Protocol (MCP) server that enables AI agents to interact with the [Memories.ai](https://memories.ai) API, providing video upload, search, chat, and management capabilities for AI applications.
+A type-safe Model Context Protocol (MCP) server that enables AI agents to interact with the [Memories.ai](https://memories.ai) API, providing comprehensive video upload, search, chat, and management capabilities for AI applications.
 
 ## Overview
 
-This MCP server bridges AI agents with the Memories.ai platform, allowing agents to upload videos, perform semantic search, chat with video content, and manage video libraries through the standardized MCP interface.
+This MCP server bridges AI agents with the Memories.ai platform using a modular, type-safe architecture. It provides seamless integration with video upload from files or URLs, semantic search, AI-powered video chat, and comprehensive video library management through the standardized MCP interface.
 
 ## Features
 
-- 🎥 **Video Upload** - Upload videos from URLs to Memories.ai
-- 🔍 **Semantic Search** - Search through videos using natural language
-- 💬 **AI Video Chat** - Have conversations about video content
-- 📊 **Video Management** - List, delete, and check video status
-- 🔌 **MCP Compatible** - Works with Claude Code and other MCP clients
-- 🔐 **Secure Authentication** - API key-based authentication
-- ⚡ **Real-time Processing** - Status callbacks and streaming responses
+- 🎥 **Video Upload** - Upload videos from local files or URLs with MIME type detection
+- 🔍 **Semantic Search** - Advanced semantic search with multiple search types (BY_VIDEO, BY_AUDIO, BY_CLIP)
+- 💬 **AI Video Chat** - Streaming conversations about video content with session management
+- 📊 **Video Management** - List, delete, and check video status with pagination and filtering
+- 🔌 **MCP Compatible** - Full MCP specification compliance with tools, resources, and prompts
+- 🔐 **Secure Authentication** - Flexible API key authentication (environment or query parameter)
+- ⚡ **Type-Safe Architecture** - Built with TypeScript, Zod validation, and better-fetch
+- 🚀 **Streaming Responses** - Real-time Server-Sent Events for chat functionality
+- 🎯 **Intelligent Prompts** - Pre-built prompt templates for video analysis workflows
 
 ## Prerequisites
 
-- Node.js 18+ or Bun runtime
-- A Memories.ai API key ([Get one here](https://memories.ai/app/login))
-- Claude Code or another MCP-compatible client
+- **Node.js 18+** or **Bun runtime** (recommended)
+- **TypeScript 4.5+** for development
+- A **Memories.ai API key** ([Get one here](https://memories.ai/app/login))
+- **Claude Code** or another MCP-compatible client
 
 ## Installation
 
-### Local Development
+### Quick Start
 
 ```bash
+# Clone the repository
 git clone https://github.com/yourusername/memories-ai-mcp.git
-cd memories-ai-mcp
+cd memcp
+
+# Install dependencies (Bun recommended)
 bun install
+
+# Build the project
+bun run build
 ```
 
 ### Environment Setup
@@ -46,6 +55,15 @@ MEMORIES_API_KEY=your_memories_ai_api_key_here
 # Optional: Set log level for debugging
 # LOG_LEVEL=info
 ```
+
+### API Key Configuration
+
+API keys can be provided in two ways:
+
+1. **Environment Variable (Recommended)**: Set `MEMORIES_API_KEY` in your `.env` file
+2. **Per-Tool Parameter**: Include `api_key` as an optional parameter in individual tool calls
+
+The per-tool parameter takes precedence over the environment variable, allowing for flexible multi-user scenarios.
 
 ## Usage
 
@@ -65,7 +83,19 @@ claude mcp add memories-ai --env MEMORIES_API_KEY=your_key_here -- /path/to/memo
 
 ### Available MCP Tools
 
-The server exposes 7 tools for AI agents:
+The server exposes 8 comprehensive tools for AI agents:
+
+#### `upload-video-file`
+Upload a video file from local storage to Memories.ai
+```json
+{
+  "file_path": "/path/to/video.mp4",
+  "unique_id": "user123",
+  "callback": "https://callback.url/webhook",
+  "video_name": "My Video"
+}
+```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 #### `upload-video-url`
 Upload a video from a URL to Memories.ai
@@ -77,19 +107,22 @@ Upload a video from a URL to Memories.ai
   "video_name": "My Video"
 }
 ```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 #### `search-videos`
-Search through uploaded videos using natural language
+Search through uploaded videos using natural language with advanced options
 ```json
 {
   "query": "people talking about AI",
-  "unique_id": "user123", 
-  "search_type": "BY_VIDEO"
+  "unique_id": "user123",
+  "search_type": "BY_VIDEO",
+  "folder_id": -1
 }
 ```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 #### `chat-with-videos`
-Have an AI conversation about one or more videos
+Have streaming AI conversations about one or more videos
 ```json
 {
   "video_nos": ["vid123", "vid456"],
@@ -98,35 +131,31 @@ Have an AI conversation about one or more videos
   "session_id": "session123"
 }
 ```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 #### `list-videos`
-Get a list of all uploaded videos
+Get a paginated list of uploaded videos with filtering options
 ```json
 {
   "unique_id": "user123",
   "page": 1,
-  "limit": 20
+  "size": 20,
+  "video_name": "optional_filter",
+  "video_no": "optional_id_filter",
+  "status": "PARSE"
 }
 ```
-
-#### `list-sessions`
-Get a list of all chat sessions
-```json
-{
-  "unique_id": "user123",
-  "page": 1,
-  "limit": 20
-}
-```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 #### `delete-videos`
-Delete one or more videos
+Delete one or more videos from Memories.ai
 ```json
 {
   "video_nos": ["vid123", "vid456"],
   "unique_id": "user123"
 }
 ```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 #### `check-video-status`
 Check the processing status of uploaded videos
@@ -136,46 +165,77 @@ Check the processing status of uploaded videos
   "unique_id": "user123"
 }
 ```
+*Note: API key can be provided as optional `api_key` parameter or via environment variable*
 
 ### MCP Resources
 
-#### `@memories-ai:memories://docs`
-Access complete API documentation and capabilities
+#### `memories://docs`
+Comprehensive API documentation and platform capabilities
+- Complete endpoint reference
+- Authentication methods
+- Rate limits and best practices
+- Troubleshooting guides
 
-#### `@memories-ai:memories://video/{videoNo}`
-Get detailed information about a specific video
+#### `memories://video/{videoNo}`
+Detailed information about specific videos
+- Video metadata and status
+- Processing information
+- Usage examples
 
-### MCP Prompts (Slash Commands)
+### MCP Prompts
 
-#### `/mcp__memories_ai__analyze_video_content`
-Generate prompts for analyzing video content with AI
-- Analysis types: summary, emotions, objects, activities, transcript
-- Optional focus areas for targeted analysis
+#### `analyze-video-content`
+Generate specialized prompts for video content analysis
+- **Analysis types**: summary, emotions, objects, activities, transcript, technical, educational
+- **Detail levels**: brief, detailed, comprehensive
+- **Focus areas**: Customizable attention to specific aspects
+- **Context instructions**: Specialized guidance per analysis type
 
-#### `/mcp__memories_ai__video_search_query`
-Help build effective search queries for finding videos
-- Supports visual, audio, and combined search approaches
-- Context-aware query building
+#### `build-search-query`
+Intelligent search query construction assistance
+- **Search approaches**: visual, audio, combined content targeting
+- **Specificity levels**: broad, specific, precise query scoping
+- **Context integration**: Incorporates additional search parameters
+- **Query optimization**: Balanced precision and recall strategies
 
-#### `/mcp__memories_ai__video_workflow_helper`
-Get guidance for common Memories.ai workflows
-- Upload, search, analyze, manage, and integrate workflows
-- Step-by-step guidance and best practices
+#### `video-workflow-helper`
+Step-by-step workflow guidance for common tasks
+- **Workflow types**: upload, search, analyze, manage, integrate, troubleshoot
+- **Experience levels**: beginner, intermediate, advanced guidance
+- **Best practices**: Actionable recommendations and pitfall avoidance
+- **Tool integration**: Specific MCP tool usage recommendations
 
 ## Development
 
 ### Project Structure
 
 ```
-memories-ai-mcp/
+memcp/
 ├── src/
-│   └── index.ts          # Main MCP server implementation
-├── dist/                 # Built JavaScript files
-├── package.json          # Project configuration
-├── tsdown.config.ts      # Build configuration
-├── tsconfig.json         # TypeScript configuration
-├── .env                  # Environment variables
-└── memories-ai-docs/     # API documentation
+│   ├── index.ts              # Main MCP server entry point
+│   ├── types/
+│   │   └── memories.ts       # TypeScript types and Zod schemas
+│   ├── clients/
+│   │   └── memories.ts       # Type-safe Memories.ai API client
+│   ├── tools/
+│   │   ├── upload.ts         # Video upload tools
+│   │   ├── search.ts         # Video search tools
+│   │   ├── chat.ts           # Video chat tools
+│   │   └── utils.ts          # Video management tools
+│   ├── resources/
+│   │   └── index.ts          # MCP resources (docs, video details)
+│   ├── prompts/
+│   │   └── index.ts          # MCP prompts for workflows
+│   └── utils/
+│       ├── api-key.ts        # API key management
+│       └── mime-types.ts     # MIME type utilities
+├── dist/                     # Built JavaScript files
+├── memories-ai-docs/         # Local API documentation
+├── package.json              # Project configuration
+├── tsdown.config.ts          # Build configuration
+├── tsconfig.json             # TypeScript configuration
+├── biome.jsonc               # Code formatting configuration
+└── .env                      # Environment variables
 ```
 
 ### Available Scripts
@@ -183,6 +243,8 @@ memories-ai-mcp/
 - `bun run dev` - Start development server with watch mode
 - `bun run build` - Build the project using tsdown
 - `bun run typecheck` - Run TypeScript type checking
+- `bun run check` - Run Biome linter and formatter
+- `bun run check:fix` - Run Biome with auto-fix
 - `bun run start` - Start the built server
 
 ### Building
@@ -276,9 +338,32 @@ Check MCP server logs in:
 
 ## Dependencies
 
+### Runtime Dependencies
 - `@modelcontextprotocol/sdk` - MCP SDK for TypeScript
-- `zod` - Schema validation
+- `@better-fetch/fetch` - Type-safe HTTP client with schema validation
+- `zod` - Runtime type validation and schema parsing
+
+### Development Dependencies
+- `@biomejs/biome` - Fast formatter and linter
 - `tsdown` - Modern TypeScript bundler
+- `typescript` - TypeScript compiler
+
+## Architecture
+
+### Type Safety
+- **Comprehensive Types**: Full TypeScript coverage with Zod runtime validation
+- **Schema-Based Client**: Better-fetch integration with predefined API schemas
+- **Request/Response Validation**: Automatic validation of all API interactions
+
+### Error Handling
+- **Graceful Degradation**: Comprehensive error messages with troubleshooting guidance
+- **Retry Logic**: Exponential backoff for transient failures
+- **Validation Errors**: Clear feedback for invalid parameters
+
+### Performance
+- **Streaming Support**: Server-Sent Events for real-time chat responses
+- **Efficient Uploads**: Optimized file handling with MIME type detection
+- **Connection Pooling**: Reusable HTTP connections with timeout management
 
 ## License
 
