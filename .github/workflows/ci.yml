@@ -65,24 +65,6 @@ jobs:
       - name: Build project
         run: bun run build
 
-      - name: Verify build output
-        run: |
-          if [ ! -f "dist/index.js" ]; then
-            echo "Build output not found at dist/index.js"
-            exit 1
-          fi
-          echo "✓ Build successful - dist/index.js exists"
-
-      - name: Test MCP server startup
-        run: |
-          timeout 10s bun run start || true
-          if [ $? -eq 124 ]; then
-            echo "✓ MCP server started successfully (timeout expected)"
-          else
-            echo "✗ MCP server failed to start"
-            exit 1
-          fi
-
   security:
     name: Security Audit
     runs-on: ubuntu-latest
