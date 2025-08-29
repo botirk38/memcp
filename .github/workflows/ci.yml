@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -86,7 +86,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -144,3 +144,4 @@ jobs:
             exit 1
           }
           Write-Output "✓ Build successful on ${{ matrix.os }}"
+
